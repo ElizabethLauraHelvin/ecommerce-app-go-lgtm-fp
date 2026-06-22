@@ -28,6 +28,7 @@ func corsMiddleware(h http.Handler) http.Handler {
 
 func proxyHandler(targetURL *url.URL, pathPrefix string) http.HandlerFunc {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	proxy.Transport = observability.TracedTransport()
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/api")
 		r.URL.RawPath = strings.TrimPrefix(r.URL.RawPath, "/api")
