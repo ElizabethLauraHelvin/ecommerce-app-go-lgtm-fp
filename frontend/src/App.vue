@@ -150,6 +150,10 @@
 
 <script>
 import axios from 'axios'
+import { initFaro } from './faro'
+
+// Initialize Faro RUM
+initFaro()
 
 // Runtime config from window.__CONFIG__ (injected by entrypoint.sh) 
 // Falls back to VITE env var, then to hardcoded default

@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "vue": "^3.3.4",
-    "axios": "^1.5.0"
+    "axios": "^1.5.0",
+    "@grafana/faro-web-sdk": "^1.12.1",
+    "@grafana/faro-web-tracing": "^1.12.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.3.4",

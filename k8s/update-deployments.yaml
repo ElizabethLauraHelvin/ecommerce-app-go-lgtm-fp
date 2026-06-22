@@ -20,9 +20,11 @@ spec:
     metadata:
       labels:
         app: api-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
-      containers:
-      - name: api-gateway
         image: haechanlovelove/ecommerce-api-gateway:latest
         imagePullPolicy: Always
         ports:
@@ -87,9 +89,11 @@ spec:
     metadata:
       labels:
         app: product-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
-      containers:
-      - name: product-service
         image: haechanlovelove/ecommerce-product:latest
         imagePullPolicy: Always
         ports:
@@ -159,9 +163,11 @@ spec:
     metadata:
       labels:
         app: order-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
-      containers:
-      - name: order-service
         image: haechanlovelove/ecommerce-order:latest
         imagePullPolicy: Always
         ports:
@@ -231,9 +237,11 @@ spec:
     metadata:
       labels:
         app: payment-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
-      containers:
-      - name: payment-service
         image: haechanlovelove/ecommerce-payment:latest
         imagePullPolicy: Always
         ports:
@@ -303,9 +311,11 @@ spec:
     metadata:
       labels:
         app: user-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
-      containers:
-      - name: user-service
         image: haechanlovelove/ecommerce-user:latest
         imagePullPolicy: Always
         ports:
@@ -375,9 +385,11 @@ spec:
     metadata:
       labels:
         app: frontend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
     spec:
-      containers:
-      - name: frontend
         image: haechanlovelove/ecommerce-frontend:latest
         imagePullPolicy: Always
         ports:
@@ -386,7 +398,7 @@ spec:
         - name: VITE_API_URL
           value: "http://4.144.133.123:8080/api"
         - name: VITE_FARO_COLLECTOR_URL
-          value: "http://alloy.monitoring.svc.cluster.local:12347/collect"
+          value: "http://135.171.11.204:12347/collect"
         livenessProbe:
           httpGet:
             path: /
