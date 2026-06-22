@@ -85,6 +85,9 @@
             <button class="nav-btn" @click="currentPage = 'orders'" title="Orders">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             </button>
+            <button class="nav-btn error-trigger-btn" @click="triggerError" title="Trigger Test Error">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </button>
             <div class="user-pill">
               <div class="user-avatar">{{ user.name.charAt(0).toUpperCase() }}</div>
               <span class="user-name">{{ user.name }}</span>
@@ -434,6 +437,17 @@ export default {
       }
       return icons[cat] || '📦'
     },
+    triggerError() {
+      try {
+        const obj = null
+        obj.nonExistentMethod()
+      } catch (err) {
+        getFaro()?.api.pushError(err)
+        getFaro()?.api.pushLog(['[TEST ERROR] Manually triggered error for testing'], { level: 'error' })
+        this.showNotification('Test error triggered! Check Grafana Faro dashboard.', 'error')
+        throw err
+      }
+    },
   },
 }
 </script>
@@ -492,6 +506,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 .nav-btn { background: none; border: none; padding: 10px; border-radius: 12px; cursor: pointer; position: relative; color: #555; transition: all 0.2s; }
 .nav-btn:hover { background: #fff3ed; color: #ee5a24; }
+.error-trigger-btn { color: #e74c3c !important; }
+.error-trigger-btn:hover { background: #fee !important; color: #c0392b !important; }
 .badge { position: absolute; top: 2px; right: 2px; background: #ee5a24; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .user-pill { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 50px; background: #f8f9fa; margin-left: 8px; }
 .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #ee5a24, #f0932b); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
