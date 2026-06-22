@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecommerce-backend
+  namespace: ecommerce
+  labels:
+    app: ecommerce-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ecommerce-backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: ecommerce-backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      containers:
+        - name: backend
+          image: haechanlovelove/ecommerce-backend:sha-dcf035b
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ecommerce
+spec:
+  replicas: 1
+  serviceName: postgres
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9187"
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - ecommerce
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - ecommerce
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.15.0
+          ports:
+            - name: metrics
+              containerPort: 9187
+          env:
+            - name: DATA_SOURCE_NAME
+              value: postgresql://ecommerce:secret@localhost:5432/ecommerce?sslmode=disable
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: init
+          configMap:
+            name: postgres-init

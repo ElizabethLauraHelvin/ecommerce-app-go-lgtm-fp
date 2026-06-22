@@ -1,0 +1,159 @@
+name: Build & Push Docker Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ecommerce-app-lgtm-fp/ecommerce/backend/**'
+      - 'ecommerce-app-lgtm-fp/ecommerce/frontend/**'
+      - '.github/workflows/build.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'ecommerce-app-lgtm-fp/ecommerce/backend/**'
+      - 'ecommerce-app-lgtm-fp/ecommerce/frontend/**'
+
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Job 1: Build & Push Backend (Go)
+  # ─────────────────────────────────────────────────────────────
+  build-backend:
+    name: Build Backend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ecommerce-app-lgtm-fp/ecommerce/backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/ecommerce-backend
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ecommerce-app-lgtm-fp/ecommerce/backend
+          file: ecommerce-app-lgtm-fp/ecommerce/backend/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache layer Docker untuk mempercepat build berikutnya
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image digest
+        run: echo "Backend image pushed ${{ steps.meta.outputs.tags }}"
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 2: Build & Push Frontend (Vue.js)
+  # ─────────────────────────────────────────────────────────────
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ecommerce-app-lgtm-fp/ecommerce/frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/ecommerce-frontend
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ecommerce-app-lgtm-fp/ecommerce/frontend
+          file: ecommerce-app-lgtm-fp/ecommerce/frontend/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Build args untuk Vite — URL akan diganti saat deploy ke K8s
+          build-args: |
+            VITE_API_URL=http://ecommerce-backend.ecommerce.svc.cluster.local:8080
+            VITE_FARO_COLLECTOR_URL=http://alloy.monitoring.svc.cluster.local:12347/collect
+            VITE_APP_NAME=ecommerce-frontend
+            VITE_APP_VERSION=1.0.0
+            VITE_APP_ENV=production
+
+      - name: Image digest
+        run: echo "Frontend image pushed ${{ steps.meta.outputs.tags }}"
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 3: Update K8s manifest image tag (hanya di main)
+  # ─────────────────────────────────────────────────────────────
+  update-manifests:
+    name: Update K8s Image Tags
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get short SHA
+        id: sha
+        run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Update backend image tag in manifest
+        run: |
+          sed -i "s|image: .*/ecommerce-backend:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/ecommerce-backend:sha-${{ steps.sha.outputs.short }}|g" \
+            ecommerce-app-lgtm-fp/ecommerce/k8s/backend/backend.yaml
+
+      - name: Update frontend image tag in manifest
+        run: |
+          sed -i "s|image: .*/ecommerce-frontend:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/ecommerce-frontend:sha-${{ steps.sha.outputs.short }}|g" \
+            ecommerce-app-lgtm-fp/ecommerce/k8s/frontend/frontend.yaml
+
+      - name: Commit updated manifests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ecommerce-app-lgtm-fp/ecommerce/k8s/
+          git diff --staged --quiet || git commit -m "ci: update image tags to sha-${{ steps.sha.outputs.short }} [skip ci]"
+          git push

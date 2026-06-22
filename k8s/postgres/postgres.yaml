@@ -1,0 +1,183 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce
+
+---
+# Secret untuk credentials PostgreSQL
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: ecommerce
+type: Opaque
+stringData:
+  POSTGRES_USER: ecommerce
+  POSTGRES_PASSWORD: secret        # Ganti di production!
+  POSTGRES_DB: ecommerce
+
+---
+# PersistentVolumeClaim untuk data PostgreSQL
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: ecommerce
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: managed-csi    # Azure Disk CSI driver
+
+---
+# ConfigMap untuk init SQL
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: ecommerce
+data:
+  001_init.sql: |
+    CREATE TABLE IF NOT EXISTS users (
+        id         BIGSERIAL PRIMARY KEY,
+        name       VARCHAR(255) NOT NULL,
+        email      VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS products (
+        id          BIGSERIAL PRIMARY KEY,
+        name        VARCHAR(255)   NOT NULL,
+        description TEXT,
+        price       DECIMAL(12, 2) NOT NULL CHECK (price >= 0),
+        stock       INT            NOT NULL DEFAULT 0 CHECK (stock >= 0),
+        category    VARCHAR(100)   NOT NULL,
+        created_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_products_category ON products (category);
+    CREATE TABLE IF NOT EXISTS orders (
+        id          BIGSERIAL PRIMARY KEY,
+        user_id     BIGINT         NOT NULL REFERENCES users (id),
+        status      VARCHAR(50)    NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending','paid','shipped','completed','cancelled')),
+        total_price DECIMAL(12, 2) NOT NULL CHECK (total_price >= 0),
+        created_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders (user_id);
+    CREATE TABLE IF NOT EXISTS order_items (
+        id         BIGSERIAL PRIMARY KEY,
+        order_id   BIGINT         NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+        product_id BIGINT         NOT NULL REFERENCES products (id),
+        quantity   INT            NOT NULL CHECK (quantity > 0),
+        price      DECIMAL(12, 2) NOT NULL CHECK (price >= 0)
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items (order_id);
+    INSERT INTO users (name, email) VALUES
+        ('Budi Santoso', 'budi@example.com'),
+        ('Sari Dewi', 'sari@example.com')
+    ON CONFLICT (email) DO NOTHING;
+    INSERT INTO products (name, description, price, stock, category) VALUES
+        ('Laptop Gaming ASUS ROG', 'Laptop gaming high-end dengan RTX 4060', 15000000, 10, 'electronics'),
+        ('Smartphone Samsung Galaxy', 'Smartphone flagship dengan kamera 200MP', 8500000, 25, 'electronics'),
+        ('Kemeja Batik Premium', 'Batik tulis motif parang', 350000, 50, 'fashion'),
+        ('Buku Clean Code', 'Panduan menulis kode yang bersih', 120000, 100, 'books'),
+        ('Kopi Toraja Arabika 500gr', 'Kopi single origin dari Toraja', 95000, 200, 'food')
+    ON CONFLICT DO NOTHING;
+
+---
+# StatefulSet PostgreSQL
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ecommerce
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+      annotations:
+        # Label untuk Alloy scrape postgres_exporter
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9187"
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "ecommerce"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "ecommerce"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+        # postgres_exporter sidecar — metrics dikirim ke Alloy → Mimir
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.15.0
+          ports:
+            - containerPort: 9187
+              name: metrics
+          env:
+            - name: DATA_SOURCE_NAME
+              value: "postgresql://ecommerce:secret@localhost:5432/ecommerce?sslmode=disable"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: init
+          configMap:
+            name: postgres-init
+
+---
+# Service PostgreSQL (ClusterIP — hanya internal)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ecommerce
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None   # Headless service untuk StatefulSet
