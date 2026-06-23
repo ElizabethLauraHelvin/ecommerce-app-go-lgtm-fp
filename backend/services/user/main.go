@@ -128,6 +128,19 @@ func main() {
 
 	mux.HandleFunc("/health", health)
 	mux.HandleFunc("/users", getUsers)
+	mux.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
+		id := r.URL.Path[len("/users/"):]
+		for _, u := range users {
+			if fmt.Sprintf("%d", u.ID) == id {
+				w.Header().Set("Content-Type", "application/json")
+				log.Printf("[USER] Found user id=%s name=%s", id, u.Name)
+				json.NewEncoder(w).Encode(User{ID: u.ID, Name: u.Name, Email: u.Email, Role: u.Role})
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, `{"error":"user not found"}`)
+	})
 	mux.HandleFunc("/auth/login", handleLogin)
 	mux.HandleFunc("/auth/register", handleRegister)
 

@@ -398,16 +398,9 @@ export default {
             quantity: i.qty,
           })),
         }
+        // Single call - order-service handles payment internally
         const orderRes = await axios.post(`${API_URL}/orders`, orderData)
         const order = orderRes.data
-
-        await axios.post(`${API_URL}/payments`, {
-          order_id: order.id,
-          amount: order.total,
-          method: this.paymentMethod,
-        })
-
-        await axios.patch(`${API_URL}/orders/${order.id}`, { status: 'paid' })
 
         getFaro()?.api.pushEvent('checkout_completed', { order_id: order.id, total: String(order.total) })
         this.cart = []

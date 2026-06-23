@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/ecommerce/observability"
@@ -29,8 +31,23 @@ type Order struct {
 var orders []Order
 var orderCounter = 0
 
+func getPaymentServiceURL() string {
+	if url := os.Getenv("PAYMENT_SERVICE_URL"); url != "" {
+		return url
+	}
+	return "http://payment-service.ecommerce.svc.cluster.local:8080"
+}
+
+func getUserServiceURL() string {
+	if url := os.Getenv("USER_SERVICE_URL"); url != "" {
+		return url
+	}
+	return "http://user-service.ecommerce.svc.cluster.local:8080"
+}
+
 func main() {
 	mux := http.NewServeMux()
+	httpClient := observability.TracedHTTPClient()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -59,8 +76,48 @@ func main() {
 			}
 			order.Total = total
 
+			// Validate user exists (call user-service)
+			userReq, _ := http.NewRequestWithContext(r.Context(), "GET", getUserServiceURL()+"/users/"+order.UserID, nil)
+			userResp, err := httpClient.Do(userReq)
+			if err != nil {
+				log.Printf("[ORDER] Failed to validate user=%s: %v", order.UserID, err)
+			} else {
+				userResp.Body.Close()
+				log.Printf("[ORDER] Validated user=%s exists", order.UserID)
+			}
+
 			orders = append(orders, order)
 			log.Printf("[ORDER] Created order=%s user=%s items=%d total=%.2f", order.ID, order.UserID, len(order.Items), order.Total)
+
+			// Auto-process payment (call payment-service)
+			paymentBody, _ := json.Marshal(map[string]interface{}{
+				"order_id": order.ID,
+				"amount":   order.Total,
+				"method":   "credit_card",
+			})
+			payReq, _ := http.NewRequestWithContext(r.Context(), "POST", getPaymentServiceURL()+"/payments", bytes.NewBuffer(paymentBody))
+			payReq.Header.Set("Content-Type", "application/json")
+			payResp, err := httpClient.Do(payReq)
+			if err != nil {
+				log.Printf("[ORDER] Payment failed for order=%s: %v", order.ID, err)
+				w.WriteHeader(http.StatusCreated)
+				json.NewEncoder(w).Encode(order)
+				return
+			}
+			payResp.Body.Close()
+
+			if payResp.StatusCode == http.StatusCreated {
+				order.Status = "paid"
+				// Update in store
+				for i, o := range orders {
+					if o.ID == order.ID {
+						orders[i].Status = "paid"
+						break
+					}
+				}
+				log.Printf("[ORDER] Payment successful, order=%s status=paid", order.ID)
+			}
+
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(order)
 			return
