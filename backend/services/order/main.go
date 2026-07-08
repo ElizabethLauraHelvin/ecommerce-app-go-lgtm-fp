@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"database/sql"
 
 	"github.com/ecommerce/observability"
 )
@@ -28,27 +29,48 @@ type Order struct {
 	CreatedAt time.Time   `json:"created_at"`
 }
 
-var orders []Order
-var orderCounter = 0
+var (
+	dbConn *sql.DB
+
+	orders []Order
+	orderCounter = 0
+)
 
 func getPaymentServiceURL() string {
-	if url := os.Getenv("PAYMENT_SERVICE_URL"); url != "" {
-		return url
-	}
-	return "http://payment-service.ecommerce.svc.cluster.local:8080"
+    if url := os.Getenv("PAYMENT_SERVICE_URL"); url != "" {
+        return url
+    }
+    return "http://payment:8080"
 }
 
 func getUserServiceURL() string {
-	if url := os.Getenv("USER_SERVICE_URL"); url != "" {
-		return url
-	}
-	return "http://user-service.ecommerce.svc.cluster.local:8080"
+    if url := os.Getenv("USER_SERVICE_URL"); url != "" {
+        return url
+    }
+    return "http://user:8080"
 }
+
 
 func main() {
 	mux := http.NewServeMux()
 	httpClient := observability.TracedHTTPClient()
 	db := observability.NewTracedDB("order-service")
+
+	dbConn = ConnectDB()
+
+	_, err := dbConn.Exec(`
+	CREATE TABLE IF NOT EXISTS orders(
+		id TEXT PRIMARY KEY,
+		user_id TEXT,
+		total NUMERIC,
+		status TEXT,
+		created_at TIMESTAMP
+	)
+	`)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -87,7 +109,23 @@ func main() {
 				log.Printf("[ORDER] Validated user=%s exists", order.UserID)
 			}
 
-			orders = append(orders, order)
+			_, err = dbConn.Exec(
+			`
+			INSERT INTO orders
+			(id,user_id,total,status,created_at)
+			VALUES($1,$2,$3,$4,$5)
+			`,
+				order.ID,
+				order.UserID,
+				order.Total,
+				order.Status,
+				order.CreatedAt,
+			)
+
+			if err != nil {
+				log.Printf("Insert failed: %v", err)
+			}
+			
 			log.Printf("[ORDER] Created order=%s user=%s items=%d total=%.2f", order.ID, order.UserID, len(order.Items), order.Total)
 			db.Insert(r.Context(), "orders", order.ID)
 
