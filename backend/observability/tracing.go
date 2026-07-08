@@ -16,7 +16,7 @@ import (
 )
 
 func InitTracing(serviceName string) func() {
-	endpoint := getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "alloy.monitoring.svc.cluster.local:4318")
+	endpoint := getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://alloy:4318")
 
 	exporter, err := otlptracehttp.New(
 		context.Background(),
