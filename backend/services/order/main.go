@@ -92,6 +92,7 @@ func main() {
 			order.ID = fmt.Sprintf("ORD-%05d", orderCounter)
 			order.CreatedAt = time.Now()
 			order.Status = "pending"
+			orders = append(orders, order)
 
 			var total float64
 			for _, item := range order.Items {
@@ -125,7 +126,7 @@ func main() {
 			if err != nil {
 				log.Printf("Insert failed: %v", err)
 			}
-			
+
 			log.Printf("[ORDER] Created order=%s user=%s items=%d total=%.2f", order.ID, order.UserID, len(order.Items), order.Total)
 			db.Insert(r.Context(), "orders", order.ID)
 

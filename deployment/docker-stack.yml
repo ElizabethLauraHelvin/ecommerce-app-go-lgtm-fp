@@ -1,0 +1,109 @@
+version: "3.9"
+
+services:
+  order:
+    image: order-service:v2
+
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+    ports:
+      - "8080:8080"
+
+    networks:
+      - monitoring
+
+    environment:
+      DATABASE_URL: postgres://postgres:postgres123@postgres:5432/ecommerce?sslmode=disable
+
+  postgres:
+    image: postgres:16
+
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+    networks:
+      - monitoring
+
+  loki:
+    image: grafana/loki:2.9.10
+
+    command:
+      - -config.file=/etc/loki/config.yml
+
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml
+
+    ports:
+      - "3100:3100"
+
+    networks:
+      - monitoring
+
+  alloy:
+    image: grafana/alloy:latest
+
+    command:
+      - run
+      - /etc/alloy/config.alloy
+
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+
+    networks:
+      - monitoring
+
+    #username : admin, admin123
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+
+    ports:
+      - "8081:8080"
+
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
+    networks:
+      - monitoring
+
+    deploy:
+      mode: global
+
+networks:
+  monitoring:
+    driver: overlay
+    attachable: true
+
+volumes:
+  grafana-data:
+  postgres-data:
