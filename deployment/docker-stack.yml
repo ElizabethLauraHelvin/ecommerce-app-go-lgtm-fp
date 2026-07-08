@@ -42,6 +42,7 @@ services:
 
     volumes:
       - ./loki/config.yml:/etc/loki/config.yml
+      - loki-data:/loki
 
     ports:
       - "3100:3100"
@@ -106,3 +107,4 @@ networks:
 volumes:
   grafana-data:
   postgres-data:
+  loki-data:

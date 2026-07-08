@@ -12,28 +12,36 @@ common:
     kvstore:
       store: inmemory
 
-# storage_config:
-#   azure:
-#     account_name: storagemonitoringlgtm
-#     account_key: eDHK9EVht2hx9ou7EwUH3icQ3vlsi5zsrtRCGAE/kJXPnOn1Wd2sHONj80Vrvl3iuRKqFrAYjkks+ASttVKaSQ==
-#     container_name: loki
-#     request_timeout: 0
 
-  storage:
-    filesystem:
-      chunks_directory: /loki/chunks
-      rules_directory: /loki/rules
+  # storage:
+  #   filesystem:
+  #     chunks_directory: /loki/chunks
+  #     rules_directory: /loki/rules
 
 schema_config:
   configs:
     - from: 2026-07-01
       store: tsdb
-      # object_store: azure
-      object_store: filesystem
+      object_store: azure
+      # object_store: filesystem
       schema: v13
       index:
         prefix: index_
         period: 24h
+
+storage_config:
+  azure:
+    account_name: storagemonitoringlgtm
+    account_key: eDHK9EVht2hx9ou7EwUH3icQ3vlsi5zsrtRCGAE/kJXPnOn1Wd2sHONj80Vrvl3iuRKqFrAYjkks+ASttVKaSQ==
+    container_name: loki
+    request_timeout: 0
+  
+  tsdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/index_cache
+
+compactor:
+  working_directory: /loki/compactor
 
 limits_config:
   allow_structured_metadata: true
