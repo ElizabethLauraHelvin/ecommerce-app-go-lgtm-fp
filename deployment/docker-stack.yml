@@ -1,6 +1,22 @@
 version: "3.9"
 
 services:
+
+  order:
+    image: order-service:v1
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      DATABASE_URL: postgres://postgres:postgres123@postgres:5432/ecommerce?sslmode=disable
+
+    networks:
+      - monitoring
+
+    depends_on:
+      - postgres
+      
   postgres:
     image: postgres:16
 
