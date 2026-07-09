@@ -12,20 +12,24 @@ discovery.relabel "logs_integrations_docker" {
   rule {
     source_labels = ["__meta_docker_container_name"]
     regex         = "/(.*)"
-    target_label  = "service_name"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "service"
+  }
+  rule {
+    source_labels = "job"
+    replacement   = "docker"
   }
 }
 
 loki.source.docker "default" {
   host           = "unix:///var/run/docker.sock"
-  targets        = discovery.docker.linux.targets
-  relabel_rules  = discovery.relabel.logs_integrations_docker.rules
-
-  labels = {
-    platform = "docker",
-  }
-
-  forward_to = [loki.write.local.receiver]
+  targets        = discovery.relabel.docker_logs.output
+  
+  forward_to = [loki.process.docker_logs.receiver]
 }
 
 loki.process "docker_logs" {
