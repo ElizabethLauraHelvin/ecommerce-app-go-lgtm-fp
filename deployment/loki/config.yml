@@ -26,7 +26,7 @@ schema_config:
 storage_config:
   azure:
     account_name: storagemonitoringlgtm
-    account_key: YOUR_KEY
+    account_key: 7PdsTWygD7cvLIOW76lpwNNZcK36HFBFhP637YPSOU/5zGsGcQSyDRP6It6CbDisuO3778l9PmY5+AStKnjGNQ==
     container_name: loki
 
   tsdb_shipper:
