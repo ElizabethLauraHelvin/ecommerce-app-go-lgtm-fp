@@ -7,35 +7,44 @@ discovery.docker "linux" {
 }
 
 discovery.relabel "logs_integrations_docker" {
-  targets = []
+  targets = discovery.docker.linux.targets
 
   rule {
     source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
+    regex         = "/?(.*)"
+    replacement   = "$1"
     target_label  = "container"
   }
+
   rule {
     source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
-    target_label  = "service"
+    regex         = "/?(.*)"
+    replacement   = "$1"
+    target_label  = "service_name"
   }
+
   rule {
-    source_labels = "job"
-    replacement   = "docker"
+    target_label = "job"
+    replacement  = "docker"
   }
 }
 
 loki.source.docker "default" {
-  host           = "unix:///var/run/docker.sock"
-  targets        = discovery.relabel.docker_logs.output
-  
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.linux.targets
+  relabel_rules = discovery.relabel.logs_integrations_docker.rules
+
+  labels = {
+    platform = "docker",
+  }
+
   forward_to = [loki.process.docker_logs.receiver]
 }
 
 loki.process "docker_logs" {
 
   stage.regex {
-    expression = ".*(?P<level>ERROR|WARN|INFO|DEBUG|FATAL|PANIC|TRACE|error|warn|info|debug|fatal|panic|trace).*"
+    expression = ".*\\[(?P<level>INFO|WARN|ERROR|DEBUG|TRACE|FATAL|PANIC)\\].*"
   }
 
   stage.labels {
@@ -52,4 +61,3 @@ loki.write "local" {
     url = "http://loki:3100/loki/api/v1/push"
   }
 }
-
