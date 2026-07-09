@@ -44,7 +44,7 @@ loki.source.docker "default" {
 loki.process "docker_logs" {
 
   stage.regex {
-    expression = ".*\\[(?P<level>INFO|WARN|ERROR|DEBUG|TRACE|FATAL|PANIC)\\].*"
+    expression = "(?i)(?P<level>INFO|WARN|ERROR|DEBUG|TRACE|FATAL|PANIC)"
   }
 
   stage.labels {
