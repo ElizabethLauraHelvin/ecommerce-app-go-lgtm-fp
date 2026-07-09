@@ -17,7 +17,7 @@ schema_config:
     - from: 2026-07-01
       store: tsdb
       object_store: azure
-      schema: v12
+      schema: v13
 
       index:
         prefix: index_
