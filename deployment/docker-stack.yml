@@ -1,12 +1,8 @@
 version: "3.9"
 
 services:
-
   order:
-    image: order-service:v6
-
-    ports:
-      - "8080:8080"
+    image: order-service:v1
 
     environment:
       DATABASE_URL: postgres://postgres:postgres123@postgres:5432/ecommerce?sslmode=disable
@@ -16,7 +12,61 @@ services:
 
     depends_on:
       - postgres
-      
+
+  payment:
+    image: payment-service:v1
+
+    environment:
+      DATABASE_URL: postgres://postgres:postgres123@postgres:5432/ecommerce?sslmode=disable
+
+    networks:
+      - monitoring
+
+    depends_on:
+      - postgres
+
+  product:
+    image: product-service:v1
+
+    environment:
+      DATABASE_URL: postgres://postgres:postgres123@postgres:5432/ecommerce?sslmode=disable
+
+    networks:
+      - monitoring
+
+    depends_on:
+      - postgres
+
+  user:
+    image: user-service:v1
+
+    environment:
+      DATABASE_URL: postgres://postgres:postgres123@postgres:5432/ecommerce?sslmode=disable
+
+    networks:
+      - monitoring
+
+    depends_on:
+      - postgres
+
+  api-gateway:
+    image: api-gateway-service:v1
+
+    ports:
+      - "8080:8080"
+
+    networks:
+      - monitoring
+
+  frontend:
+    image: frontend-service:v1
+
+    ports:
+      - "3001:3000"
+
+    networks:
+      - monitoring
+
   postgres:
     image: postgres:16
 
