@@ -50,7 +50,7 @@ services:
       - postgres
 
   api-gateway:
-    image: api-gateway-service:v1
+    image: api-gateaway-service:v1
 
     ports:
       - "8080:8080"
